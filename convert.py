@@ -13,9 +13,16 @@ import os
 import logging
 from argparse import ArgumentParser
 import shutil
+from pathlib import Path
 
-# This Python script is based on the shell converter script provided in the MipNerF 360 repository.
-parser = ArgumentParser("Colmap converter")
+# --- IMPORT HLOC ---
+try:
+    from hloc import extract_features, match_features, pairs_from_exhaustive, reconstruction
+except ImportError:
+    logging.error("Hãy cài đặt hloc trước: pip install -e . (trong thư mục Hierarchical-Localization)")
+    exit(1)
+    
+parser = ArgumentParser("Colmap converter with LoMa-B")
 parser.add_argument("--no_gpu", action='store_true')
 parser.add_argument("--skip_matching", action='store_true')
 parser.add_argument("--source_path", "-s", required=True, type=str)
@@ -23,69 +30,87 @@ parser.add_argument("--camera", default="OPENCV", type=str)
 parser.add_argument("--colmap_executable", default="", type=str)
 parser.add_argument("--resize", action="store_true")
 parser.add_argument("--magick_executable", default="", type=str)
-args = parser.parse_args()
+# args = parser.parse_args()
+# test input: --source_path /content/drive/MyDrive/KLTN/test_input --camera SIMPLE_PINHOLE
+args = parser.parse_args([
+    "--source_path", "/content/drive/MyDrive/KLTN/test_input",
+    "--camera", "SIMPLE_PINHOLE"
+])
+
 colmap_command = '"{}"'.format(args.colmap_executable) if len(args.colmap_executable) > 0 else "colmap"
 magick_command = '"{}"'.format(args.magick_executable) if len(args.magick_executable) > 0 else "magick"
-use_gpu = 1 if not args.no_gpu else 0
 
 if not args.skip_matching:
-    os.makedirs(args.source_path + "/distorted/sparse", exist_ok=True)
+    
+    source_path = Path(args.source_path)
+    image_dir = source_path # Corrected: Images are directly in source_path, not source_path / "input"
+    output_dir = source_path / "distorted"
+    output_dir.mkdir(parents=True, exist_ok=True);
 
-    ## Feature extraction
-    feat_extracton_cmd = colmap_command + " feature_extractor "\
-        "--database_path " + args.source_path + "/distorted/database.db \
-        --image_path " + args.source_path + "/input \
-        --ImageReader.single_camera 1 \
-        --ImageReader.camera_model " + args.camera + " \
-        --SiftExtraction.use_gpu " + str(use_gpu)
-    exit_code = os.system(feat_extracton_cmd)
-    if exit_code != 0:
-        logging.error(f"Feature extraction failed with code {exit_code}. Exiting.")
-        exit(exit_code)
+    sfm_pairs = output_dir / "pairs-exhaustive.txt"
+    sfm_dir = output_dir / "sparse"
+    features = output_dir / "features.h5"
+    matches = output_dir / "matches.h5"
 
-    ## Feature matching
-    feat_matching_cmd = colmap_command + " exhaustive_matcher \
-        --database_path " + args.source_path + "/distorted/database.db \
-        --SiftMatching.use_gpu " + str(use_gpu)
-    exit_code = os.system(feat_matching_cmd)
-    if exit_code != 0:
-        logging.error(f"Feature matching failed with code {exit_code}. Exiting.")
-        exit(exit_code)
+    # 1. Định nghĩa cấu hình LoMa (đảm bảo bản hloc của bạn đã có conf 'loma')
+    feature_conf = extract_features.confs['loma_aachen'] # Changed 'loma' to 'loma_aachen'
+    matcher_conf = match_features.confs['loma']
 
-    ### Bundle adjustment
-    # The default Mapper tolerance is unnecessarily large,
-    # decreasing it speeds up bundle adjustment steps.
-    mapper_cmd = (colmap_command + " mapper \
-        --database_path " + args.source_path + "/distorted/database.db \
-        --image_path "  + args.source_path + "/input \
-        --output_path "  + args.source_path + "/distorted/sparse \
-        --Mapper.ba_global_function_tolerance=0.000001")
-    exit_code = os.system(mapper_cmd)
-    if exit_code != 0:
-        logging.error(f"Mapper failed with code {exit_code}. Exiting.")
-        exit(exit_code)
+    print("--- [LoMa] Creating image pairs ---")
+    # Get list of images from the image_dir and convert to strings
+    image_list_paths = [str(p.relative_to(image_dir)) for p in image_dir.iterdir() if p.is_file()]
+    pairs_from_exhaustive.main(sfm_pairs, image_list=image_list_paths) # Pass image_list
+
+    print("--- [LoMa] Extracting features ---")
+    extract_features.main(feature_conf, image_dir, feature_path=features)
+
+    print("--- [LoMa] Matching features ---")
+    match_features.main(matcher_conf, sfm_pairs, features=features, matches=matches) # Corrected: Pass features and matches as keyword arguments
+
+    print("--- [hloc] Running Reconstruction (Sparse Model) ---")
+    reconstruction.main(
+    sfm_dir,
+    image_dir,
+    sfm_pairs,
+    features,
+    matches,
+    camera_mode="SINGLE",
+    image_options={"camera_model": args.camera}
+)
+
+# ... (Giữ nguyên phần hloc bên trên) ...
 
 ### Image undistortion
-## We need to undistort our images into ideal pinhole intrinsics.
-img_undist_cmd = (colmap_command + " image_undistorter \
-    --image_path " + args.source_path + "/input \
-    --input_path " + args.source_path + "/distorted/sparse/0 \
-    --output_path " + args.source_path + "\
-    --output_type COLMAP")
+print("--- [COLMAP] Undistorting images ---")
+# Lưu ý: hloc tạo model ở distorted/sparse (hloc dùng sparse)
+input_model_path = output_dir / "sparse"
+img_undist_cmd = (colmap_command + " image_undistorter "
+    f"--image_path {args.source_path} " # Corrected from /input
+    f"--input_path {input_model_path} "
+    # f"--output_path {args.source_path} "
+    f"--output_path {output_dir} "
+    "--output_type COLMAP")
+
 exit_code = os.system(img_undist_cmd)
 if exit_code != 0:
-    logging.error(f"Mapper failed with code {exit_code}. Exiting.")
+    logging.error(f"Undistorter failed with code {exit_code}. Exiting.")
     exit(exit_code)
 
-files = os.listdir(args.source_path + "/sparse")
-os.makedirs(args.source_path + "/sparse/0", exist_ok=True)
-# Copy each file from the source directory to the destination directory
-for file in files:
-    if file == '0':
-        continue
-    source_file = os.path.join(args.source_path, "sparse", file)
-    destination_file = os.path.join(args.source_path, "sparse", "0", file)
-    shutil.move(source_file, destination_file)
+# --- FIX LỖI DI CHUYỂN FILE ---
+# Sau khi undistort, COLMAP tạo folder 'sparse' ở thư mục gốc.
+# Ta cần đưa các file vào 'sparse/0' để đúng cấu trúc Gaussian Splatting
+sparse_root = Path(args.source_path) / "sparse"
+if sparse_root.exists():
+    files = os.listdir(sparse_root)
+    dest_proto = sparse_root / "0"
+    dest_proto.mkdir(exist_ok=True)
+
+    for file in files:
+        if file == '0': continue
+        source_file = sparse_root / file
+        destination_file = dest_proto / file
+        if source_file.is_file():
+            shutil.move(str(source_file), str(destination_file))
 
 if(args.resize):
     print("Copying and resizing...")
