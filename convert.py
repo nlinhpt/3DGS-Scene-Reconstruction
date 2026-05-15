@@ -14,10 +14,27 @@ import logging
 from argparse import ArgumentParser
 import shutil
 from pathlib import Path
+
+# Additional pair generation strategies kept for future experiments:
+# - pairs_from_retrieval: retrieval-based image pairing
+# - pairs_from_covisibility: covisibility-based pairing
+# - pairs_from_poses: pose-based pairing
+
 try:
-    from hloc import extract_features, match_features, pairs_from_exhaustive,pairs_from_sequence, reconstruction
+    from hloc import (
+        extract_features,
+        match_features,
+        pairs_from_exhaustive,
+        pairs_from_covisibility,
+        pairs_from_poses,
+        pairs_from_retrieval,
+        reconstruction,
+    )
 except ImportError:
-    logging.error("Install hloc first: pip install -e . (in the Hierarchical-Localization directory)")
+    logging.error(
+        "Install hloc first: pip install -e . "
+        "(in the Hierarchical-Localization directory)"
+    )
     exit(1)
     
 parser = ArgumentParser("Colmap converter with LoMa")
@@ -29,11 +46,7 @@ parser.add_argument("--colmap_executable", default="", type=str)
 parser.add_argument("--resize", action="store_true")
 parser.add_argument("--magick_executable", default="", type=str)
 args = parser.parse_args()
-# test input: --source_path /content/drive/MyDrive/KLTN/test_input --camera SIMPLE_PINHOLE
-# args = parser.parse_args([
-#     "--source_path", "/content/drive/MyDrive/KLTN/test_input",
-#     "--camera", "SIMPLE_PINHOLE"
-# ])
+
 
 colmap_command = '"{}"'.format(args.colmap_executable) if len(args.colmap_executable) > 0 else "colmap"
 magick_command = '"{}"'.format(args.magick_executable) if len(args.magick_executable) > 0 else "magick"
@@ -41,24 +54,10 @@ use_gpu = 1 if not args.no_gpu else 0
 
 
 if not args.skip_matching:
-    
-    # ## Feature extraction
-    # feat_extracton_cmd = colmap_command + " feature_extractor "\
-    #     "--database_path " + args.source_path + "/distorted/database.db \
-    #     --image_path " + args.source_path + "/input \
-    #     --ImageReader.single_camera 1 \
-    #     --ImageReader.camera_model " + args.camera + " \
-    #     --SiftExtraction.use_gpu " + str(use_gpu)
-    # exit_code = os.system(feat_extracton_cmd)
-    # if exit_code != 0:
-    #     logging.error(f"Feature extraction failed with code {exit_code}. Exiting.")
-    #     exit(exit_code)
-    
-    
-   
+ 
     # Path setup
     source_path = Path(args.source_path)
-    image_dir = source_path # Corrected: Images are directly in source_path, not source_path / "input"
+    image_dir = source_path
     output_dir = source_path / "distorted"
     output_dir.mkdir(parents=True, exist_ok=True);
 
@@ -67,9 +66,59 @@ if not args.skip_matching:
     features = output_dir / "features.h5"
     matches = output_dir / "matches.h5"
 
-    ## Feature extraction and matching with hloc
-    feature_conf = extract_features.confs['loma_aachen'] # Changed 'loma' to 'loma_aachen', you can choose loma_inloc
+    # ============================================================
+    # Feature Extraction and Matching
+    # ============================================================
+
+    """
+    LoMa-based COLMAP conversion pipeline for Gaussian Splatting.
+
+    Pipeline:
+    1. Generate image pairs
+    2. Extract LoMa local features
+    3. Match image pairs using LoMa matcher
+    4. Run sparse SfM reconstruction with HLoc + COLMAP
+    5. Undistort images for Gaussian Splatting
+    6. Generate multi-scale image pyramids
+
+    Supports future extensions with:
+    - retrieval-based pairing
+    - covisibility pairing
+    - pose-based pairing
+    """
+
+
+    feature_conf = extract_features.confs['loma_aachen'] 
+    
+    # Preset configuration for LoMa feature extraction.
+    # Available presets:
+    # - loma_aachen : resize_max = 1024 (outdoor/Aachen style datasets)
+    # - loma_inloc  : resize_max = 1600 (indoor/high-resolution datasets)
+    #
+    # These presets ONLY affect:
+    # - image preprocessing
+    # - resize resolution
+    # - output feature filename
+    #
+    # The actual LoMa extractor implementation is defined in:
+    # hloc/extractors/loma.py
+
     matcher_conf = match_features.confs['loma']
+    
+    # Default matcher architecture: LoMa-B.
+    # To override:
+    #
+    # matcher_conf = {
+    #     "output": "matches-loma-r",
+    #     "model": {
+    #         "name": "loma",
+    #         "arch": "LoMa-R",
+    #     },
+    # }
+    #
+    # Available:
+    # LoMa-B / LoMa-L / LoMa-G / LoMa-R
+    
 
     print("--- [LoMa] Creating image pairs ---")
     # Get list of images from the image_dir and convert to strings
@@ -78,20 +127,16 @@ if not args.skip_matching:
     # Pair generation strategy for image matching.
     # Current: exhaustive matching (all image pairs).
     # Can be replaced with:
-    # - sequential pairs (video-like captures)
     # - retrieval-based pairs
     # - vocabulary tree matching
     # - overlap-based pairing
     # for better scalability on large indoor datasets.
     
     pairs_from_exhaustive.main(sfm_pairs, image_list=image_list_paths) 
-    #pairs_from_sequence.main(sfm_pairs, image_list=image_list_paths) # Optional: Add sequential pairs for video-like datasets
-
-    print("--- [LoMa] Extracting features ---")
     extract_features.main(feature_conf, image_dir, feature_path=features)
 
     print("--- [LoMa] Matching features ---")
-    match_features.main(matcher_conf, sfm_pairs, features=features, matches=matches) # Corrected: Pass features and matches as keyword arguments
+    match_features.main(matcher_conf, sfm_pairs, features=features, matches=matches) 
 
     print("--- [hloc] Running Reconstruction (Sparse Model) ---")
     reconstruction.main(
