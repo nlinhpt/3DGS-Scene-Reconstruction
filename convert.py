@@ -57,8 +57,10 @@ if not args.skip_matching:
  
     # Path setup
     source_path = Path(args.source_path)
-    image_dir = source_path
+    #image_dir = source_path
+    image_dir = source_path / "images"
     output_dir = source_path / "distorted"
+    
     output_dir.mkdir(parents=True, exist_ok=True);
 
     sfm_pairs = output_dir / "pairs-exhaustive.txt"
@@ -122,8 +124,14 @@ if not args.skip_matching:
 
     print("--- [LoMa] Creating image pairs ---")
     # Get list of images from the image_dir and convert to strings
-    image_list_paths = [str(p.relative_to(image_dir)) for p in image_dir.iterdir() if p.is_file()]
-    
+    #image_list_paths = [str(p.relative_to(image_dir)) for p in image_dir.iterdir() if p.is_file()]
+    valid_ext = [".jpg", ".jpeg", ".png"]
+
+    image_list_paths = [
+        str(p.relative_to(image_dir))
+        for p in image_dir.iterdir()
+        if p.suffix.lower() in valid_ext
+    ]
     # Pair generation strategy for image matching.
     # Current: exhaustive matching (all image pairs).
     # Can be replaced with:
@@ -153,13 +161,15 @@ if not args.skip_matching:
 
 ### Image undistortion
 print("--- [COLMAP] Undistorting images ---")
-input_model_path = output_dir / "sparse"
-img_undist_cmd = (colmap_command + " image_undistorter "
-    f"--image_path {args.source_path} " # Corrected from /input
+input_model_path = output_dir / "sparse" /"0" # add "0" to match COLMAP's expected input structure for undistorter
+
+img_undist_cmd = (
+    colmap_command + " image_undistorter "
+    f"--image_path {image_dir} "
     f"--input_path {input_model_path} "
     f"--output_path {args.source_path} "
-    #f"--output_path {output_dir} "
-    "--output_type COLMAP")
+    "--output_type COLMAP"
+)
 
 exit_code = os.system(img_undist_cmd)
 if exit_code != 0:
