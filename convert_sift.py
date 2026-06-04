@@ -24,11 +24,28 @@ parser.add_argument("--camera", default="OPENCV", type=str)
 parser.add_argument("--colmap_executable", default="", type=str)
 parser.add_argument("--resize", action="store_true")
 parser.add_argument("--magick_executable", default="", type=str)
+parser.add_argument(
+    "--matcher",
+    type=str,
+    default="exhaustive",
+    choices=["exhaustive", "sequential"]
+)
+
+parser.add_argument(
+    "--loop_detection",
+    type=int,
+    default=0,
+    choices=[0, 1],
+    help="Enable COLMAP loop detection (1) or disable (0)"
+)
+
 args = parser.parse_args()
 
 colmap_command = '"{}"'.format(args.colmap_executable) if len(args.colmap_executable) > 0 else "colmap"
 magick_command = '"{}"'.format(args.magick_executable) if len(args.magick_executable) > 0 else "magick"
 use_gpu = 1 if not args.no_gpu else 0
+
+
 
 if not args.skip_matching:
     os.makedirs(args.source_path + "/distorted/sparse", exist_ok=True)
@@ -45,24 +62,44 @@ if not args.skip_matching:
         logging.error(f"Feature extraction failed with code {exit_code}. Exiting.")
         exit(exit_code)
 
-    ## Feature matching
-    # sequential_matcher
-    # feat_matching_cmd = colmap_command + " sequential_matcher \
-    #     --database_path " + args.source_path + "/distorted/database.db \
-    #     --SiftMatching.use_gpu " + str(use_gpu)
+    # ## Feature matching
+    # # sequential_matcher
+    # # feat_matching_cmd = colmap_command + " sequential_matcher \
+    # #     --database_path " + args.source_path + "/distorted/database.db \
+    # #     --SiftMatching.use_gpu " + str(use_gpu)
 
-    # 
-    feat_matching_cmd = (colmap_command + " exhaustive_matcher \
-        --database_path " + args.source_path + "/distorted/database.db \
-        --SiftMatching.use_gpu " + str(use_gpu))
-    
-    # feat_matching_cmd = (colmap_command + " sequential_matcher \
+    # # 
+    # feat_matching_cmd = (colmap_command + " exhaustive_matcher \
     #     --database_path " + args.source_path + "/distorted/database.db \
-    #     --SiftMatching.use_gpu " + str(use_gpu) + " \
-    #     --SequentialMatching.overlap 10 \
-    #     --SequentialMatching.loop_detection 0")
+    #     --SiftMatching.use_gpu " + str(use_gpu))
     
-    print("--- [Strict Evaluation] COLMAP đang matching với cấu hình Overlap=10, Loop_detection=0 ---") 
+    # # feat_matching_cmd = (colmap_command + " sequential_matcher \
+    # #     --database_path " + args.source_path + "/distorted/database.db \
+    # #     --SiftMatching.use_gpu " + str(use_gpu) + " \
+    # #     --SequentialMatching.overlap 10 \
+    # #     --SequentialMatching.loop_detection 0")
+    
+    if args.matcher == "exhaustive":
+        print("--- Using Exhaustive Matcher ---")
+
+        feat_matching_cmd = (
+            colmap_command + " exhaustive_matcher \
+            --database_path " + args.source_path + "/distorted/database.db \
+            --SiftMatching.use_gpu " + str(use_gpu)
+        )
+
+    elif args.matcher == "sequential":
+        print(f"--- Using Sequential Matcher (overlap=10, loop_detection={args.loop_detection}) ---")
+
+        feat_matching_cmd = (
+            colmap_command + " sequential_matcher "
+            "--database_path " + args.source_path + "/distorted/database.db "
+            "--SiftMatching.use_gpu " + str(use_gpu) + " "
+            "--SequentialMatching.overlap 10 "
+            "--SequentialMatching.loop_detection " + str(args.loop_detection)
+        )
+    
+    print(f"--- [Strict Evaluation] COLMAP matching | overlap=10 | loop_detection={args.loop_detection} ---")
     exit_code = os.system(feat_matching_cmd)
     if exit_code != 0:
         logging.error(f"Feature matching failed with code {exit_code}. Exiting.")
@@ -103,7 +140,7 @@ for file in files:
 sfm_dir = Path(args.source_path) / "distorted" / "sparse" / "0"
 image_dir = Path(args.source_path) / "input"
 output_dir = Path(args.source_path)
-print("--- [Benchmark] Đang chạy đánh giá ---")
+print("--- [Benchmark]---")
 metrics = evaluate_sfm(sfm_dir, image_dir)
 print(metrics)
 
