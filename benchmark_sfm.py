@@ -1,6 +1,7 @@
 from pathlib import Path
-from hloc.utils.read_write_model import read_model
+from hloc.utils.read_write_model import read_model, qvec2rotmat
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 def evaluate_sfm(sfm_dir, image_dir):
     # Đọc model từ file .bin
@@ -35,30 +36,38 @@ def evaluate_sfm(sfm_dir, image_dir):
     }
     return metrics
 
+
+
 def export_trajectory_tum(model_path, output_tum_path):
-    """Đọc mô hình COLMAP và xuất quỹ đạo sang định dạng TUM."""
     print("--- [Benchmark] Exporting trajectory to TUM format ---")
     images_bin = model_path / "images.bin"
     images_txt = model_path / "images.txt"
-    
+
     if not images_bin.exists() and not images_txt.exists():
-        print(f"Warning: Sparse model 'images' not found in {model_path}. Skipping trajectory export.")
+        print(f"Warning: Sparse model not found in {model_path}. Skipping.")
         return
 
     ext = ".bin" if images_bin.exists() else ".txt"
     _, images, _ = read_model(path=model_path, ext=ext)
 
     with open(output_tum_path, 'w') as f:
-        # Sắp xếp theo tên file ảnh (ví dụ từ 000004.png tăng dần)
-        sorted_images = sorted(images.values(), key=lambda x: x.name)
-        
+        sorted_images = sorted(images.values(), key=lambda x: int(Path(x.name).stem))
+
         for img in sorted_images:
-            # Lấy tên file bỏ đuôi làm timestamp để khớp với Ground Truth
-            timestamp = Path(img.name).stem 
-            tx, ty, tz = img.tvec
-            qw, qx, qy, qz = img.qvec
-            
-            # Định dạng TUM: timestamp tx ty tz qx qy qz qw
-            f.write(f"{timestamp} {tx} {ty} {tz} {qx} {qy} {qz} {qw}\n")
-            
+            timestamp = Path(img.name).stem  
+
+            # COLMAP: T_cw (World -> Camera)
+            R_cw = qvec2rotmat(img.qvec)
+            t_cw = img.tvec
+
+            # Invert → T_wc (Camera→World) để khớp ScanNet
+            R_wc = R_cw.T
+            t_wc = -R_wc @ t_cw
+
+            qx, qy, qz, qw = Rotation.from_matrix(R_wc).as_quat()
+
+            f.write(f"{timestamp} {t_wc[0]:.6f} {t_wc[1]:.6f} {t_wc[2]:.6f} "
+                    f"{qx:.6f} {qy:.6f} {qz:.6f} {qw:.6f}\n")
+
     print(f"Trajectory saved to {output_tum_path}")
+

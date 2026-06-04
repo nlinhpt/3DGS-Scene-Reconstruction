@@ -485,12 +485,20 @@ print(f"--- [OK] 3DGS input ready at {source_path} ---")
 #
 # TUM format per line:  timestamp tx ty tz qx qy qz qw
 #
-# Quaternion note:
-#   COLMAP stores quaternions as [qw, qx, qy, qz] (img.qvec).
-#   TUM format requires [qx, qy, qz, qw] (qw at the END).
-#   export_trajectory_tum in benchmark_sfm.py handles this reordering.
-#   If ATE / RPE from evo appears abnormally large, verify quaternion
-#   order is the first thing to check.
+# Coordinate convention (aligned with ScanNet ground truth):
+#   COLMAP stores poses as T_cw (World → Camera):
+#       R_cw = qvec2rotmat(img.qvec),  t_cw = img.tvec
+#   ScanNet ground truth stores poses as T_wc (Camera → World).
+#   export_trajectory_tum inverts T_cw to obtain T_wc:
+#       R_wc = R_cw.T,  t_wc = -R_wc @ t_cw
+#   The resulting t_wc is the camera position in world space, and R_wc
+#   is converted to quaternion [qx, qy, qz, qw] via scipy (note: COLMAP
+#   uses [qw, qx, qy, qz] internally — reordering is handled in export).
+#
+# If ATE / RPE from evo appears abnormally large, check in order:
+#   1. Quaternion order (qw last for TUM)
+#   2. Pose inversion (T_wc vs T_cw)
+#   3. Timestamp alignment (ScanNet uses integer stems: 0, 1, 2, ...)
 # ═══════════════════════════════════════════════════════════════════════
 
 print("--- [Benchmark] Exporting camera trajectory (TUM format) ---")
