@@ -379,6 +379,7 @@ if not args.skip_matching:
         mapper_options={
             "ba_global_function_tolerance": 1e-6,
             "ba_global_max_num_iterations": 100,
+            "num_threads": 1, # add num_threads 
         },
         verbose=True,
     )
