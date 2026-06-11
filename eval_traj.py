@@ -540,7 +540,7 @@ class TrajectoryEvaluator:
         frame_ids  = [tp for tp, _ in self.matches]
 
         # ── 1. 3D Trajectory ─────────────────────────────────────────────────
-        fig = plt.figure(figsize=(7, 6))
+        fig = plt.figure(figsize=(6, 5))
         ax  = fig.add_subplot(111, projection='3d')
         ax.plot(self.gt_pts[:, 0], self.gt_pts[:, 1], self.gt_pts[:, 2],
                 f'{S["gt"]["marker"]}{S["gt"]["ls"]}',
@@ -550,16 +550,19 @@ class TrajectoryEvaluator:
                 f'{S["pred"]["marker"]}{S["pred"]["ls"]}',
                 color=S['pred']['color'], linewidth=S['lw'],
                 markersize=S['ms'], label=S['pred']['label'])
-        ax.set_title('3D Trajectory', fontsize=12)
+
+        ax.set_box_aspect([1, 1, 0.5])   
+        ax.view_init(elev=25, azim=-60)
+        #ax.set_title('3D Trajectory', fontsize=12)
         ax.set_xlabel('X (m)'); ax.set_ylabel('Y (m)'); ax.set_zlabel('Z (m)')
         ax.legend(fontsize=9)
         plt.tight_layout()
         fig.savefig(self.output_dir / 'plot_trajectory_3d.png',
-                    dpi=150, bbox_inches='tight')
+                    dpi=200, bbox_inches='tight')
         plt.close(fig)
 
         # ── 2. Top-down view (XZ plane) ──────────────────────────────────────
-        fig, ax = plt.subplots(figsize=(7, 6))
+        fig, ax = plt.subplots(figsize=(6, 4))
         ax.plot(self.gt_pts[:, 0], self.gt_pts[:, 2],
                 f'{S["gt"]["marker"]}{S["gt"]["ls"]}',
                 color=S['gt']['color'], linewidth=S['lw'],
@@ -569,64 +572,64 @@ class TrajectoryEvaluator:
                 color=S['pred']['color'], linewidth=S['lw'],
                 markersize=S['ms'], label=S['pred']['label'])
         ax.set_xlabel('X (m)'); ax.set_ylabel('Z (m)')
-        ax.set_title('Top-down View (X-Z Plane)', fontsize=12)
+        #ax.set_title('Top-down View (X-Z Plane)', fontsize=12)
         ax.legend(fontsize=9); ax.grid(alpha=0.3)
         plt.tight_layout()
         fig.savefig(self.output_dir / 'plot_trajectory_topdown.png',
-                    dpi=150, bbox_inches='tight')
+                    dpi=200, bbox_inches='tight')
         plt.close(fig)
 
         # ── 3. ATE per frame ─────────────────────────────────────────────────
-        fig, ax = plt.subplots(figsize=(7, 4))
+        fig, ax = plt.subplots(figsize=(6, 3))
         ax.plot(frame_ids, self.ate['errors'], color='#e6a817', linewidth=S['lw'])
         ax.axhline(self.ate['rmse'], **S['rmse'],
                    label=f'RMSE = {self.ate["rmse"]:.4f} m')
         ax.set_xlabel('Frame ID'); ax.set_ylabel('ATE (m)')
-        ax.set_title('ATE per Frame', fontsize=12)
+        #ax.set_title('ATE per Frame', fontsize=12)
         ax.legend(fontsize=9); ax.grid(alpha=0.3)
         plt.tight_layout()
         fig.savefig(self.output_dir / 'plot_ate_per_frame.png',
-                    dpi=150, bbox_inches='tight')
+                    dpi=200, bbox_inches='tight')
         plt.close(fig)
 
         # ── 4. RPE translation ───────────────────────────────────────────────
-        fig, ax = plt.subplots(figsize=(7, 4))
+        fig, ax = plt.subplots(figsize=(6, 3))
         ax.plot(self.rpe['trans_errors'], color='#2ca02c', linewidth=S['lw'])
         ax.axhline(self.rpe['trans_rmse'], **S['rmse'],
                    label=f'RMSE = {self.rpe["trans_rmse"]:.4f} m')
         ax.set_xlabel('Frame pair'); ax.set_ylabel('RPE translation (m)')
-        ax.set_title('RPE – Translation', fontsize=12)
+        #ax.set_title('RPE – Translation', fontsize=12)
         ax.legend(fontsize=9); ax.grid(alpha=0.3)
         plt.tight_layout()
         fig.savefig(self.output_dir / 'plot_rpe_translation.png',
-                    dpi=150, bbox_inches='tight')
+                    dpi=200, bbox_inches='tight')
         plt.close(fig)
 
         # ── 5. RPE rotation ──────────────────────────────────────────────────
-        fig, ax = plt.subplots(figsize=(7, 4))
+        fig, ax = plt.subplots(figsize=(6, 3))
         ax.plot(np.degrees(self.rpe['rot_errors']), color='#9467bd', linewidth=S['lw'])
         ax.axhline(self.rpe['rot_rmse_deg'], **S['rmse'],
                    label=f'RMSE = {self.rpe["rot_rmse_deg"]:.3f}°')
         ax.set_xlabel('Frame pair'); ax.set_ylabel('RPE rotation (°)')
-        ax.set_title('RPE – Rotation', fontsize=12)
+        #ax.set_title('RPE – Rotation', fontsize=12)
         ax.legend(fontsize=9); ax.grid(alpha=0.3)
         plt.tight_layout()
         fig.savefig(self.output_dir / 'plot_rpe_rotation.png',
-                    dpi=150, bbox_inches='tight')
+                    dpi=200, bbox_inches='tight')
         plt.close(fig)
 
         # ── 6. ATE histogram ─────────────────────────────────────────────────
-        fig, ax = plt.subplots(figsize=(7, 4))
+        fig, ax = plt.subplots(figsize=(6, 3.5))
         ax.hist(self.ate['errors'], bins=30,
                 color='#1f77b4', alpha=0.8, edgecolor='white')
         ax.axvline(self.ate['rmse'], **S['rmse'],
                    label=f'RMSE = {self.ate["rmse"]:.4f} m')
         ax.set_xlabel('ATE (m)'); ax.set_ylabel('Count')
-        ax.set_title('ATE Distribution', fontsize=12)
+        #ax.set_title('ATE Distribution', fontsize=12)
         ax.legend(fontsize=9); ax.grid(alpha=0.3)
         plt.tight_layout()
         fig.savefig(self.output_dir / 'plot_ate_histogram.png',
-                    dpi=150, bbox_inches='tight')
+                    dpi=200, bbox_inches='tight')
         plt.close(fig)
 
         print(f'Saved 6 evaluation plots → {self.output_dir}')
