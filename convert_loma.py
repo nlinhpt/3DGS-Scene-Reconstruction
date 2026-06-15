@@ -262,7 +262,13 @@ if not args.skip_matching:
     # Available architectures: LoMa-B (default) | LoMa-L | LoMa-G | LoMa-R
     
     # matcher_conf = match_features.confs["loma"]
-    matcher_conf = match_features.confs["LoMa-R"]
+    matcher_conf = {
+    "model": {
+        "name": "loma",
+        "arch": "LoMa-R",
+        "filter_threshold": 0.3, 
+    },
+}
 
     # ── Build image list ─────────────────────────────────────────────────
     valid_ext = {".jpg", ".jpeg", ".png"}
