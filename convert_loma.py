@@ -265,8 +265,8 @@ if not args.skip_matching:
     matcher_conf = {
     "model": {
         "name": "loma",
-        "arch": "LoMa-R",
-        "filter_threshold": 0.3, 
+        "arch": "LoMa-B",
+        "filter_threshold": 0.2, 
     },
 }
 
