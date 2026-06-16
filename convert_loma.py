@@ -266,7 +266,7 @@ if not args.skip_matching:
     "model": {
         "name": "loma",
         "arch": "LoMa-B",
-        "filter_threshold": 0.4, 
+        "filter_threshold": 0.5, 
     },
 }
 
