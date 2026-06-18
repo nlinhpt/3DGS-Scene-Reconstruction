@@ -135,6 +135,65 @@ parser.add_argument(
          "but increase matching time.",
 )
 
+ 
+parser.add_argument(
+    "--num_threads",
+    default=-1,
+    type=int,
+    help="Mapper.num_threads passed to the COLMAP incremental mapper. "
+         "Default -1 lets COLMAP use all available cores. Set to 1 only for "
+         "debugging non-deterministic reconstruction issues (much slower).",
+)
+ 
+# ── LightGlue matcher knobs ──────────────────────────────────────────────
+parser.add_argument(
+    "--filter_threshold",
+    default=0.1,
+    type=float,
+    help="LightGlue match confidence threshold (matcher_conf['model']"
+         "['filter_threshold']). Matches with confidence below this value are "
+         "discarded before they ever reach COLMAP. Range is roughly 0.0-1.0; "
+         "the hloc default for the 'loma' matcher config is typically around "
+         "0.1. Raise it (e.g. 0.2-0.3) to keep only higher-confidence matches "
+         "when LoMa is producing too many noisy correspondences; lower it to "
+         "improve recall on textureless/repetitive scenes at the cost of more "
+         "outliers for COLMAP's own filtering stage to clean up.",
+)
+ 
+# ── Outlier-filtering knobs for LoMa ────────────────────────────────────
+# Picked from Matching_eval.xlsx (SIFT vs LoMA, 10 ScanNet scenes):
+#   - LoMA mean reprojection error is consistently higher than SIFT across
+#     every single scene (1.477px vs 1.017px average) — the most consistent
+#     gap in the whole table.
+#   - LoMA's point count explodes relative to SIFT (~105.7k vs ~5.7k mean,
+#     ~18.5x) while registration rate only grows ~2.3x (96.0% vs 42.2%) —
+#     i.e. most of the extra points come from far denser per-image track
+#     merging/completion, not from registering more images.
+# Both parameters below target these two observed effects directly.
+parser.add_argument(
+    "--filter_max_reproj_error",
+    default=1.2,
+    type=float,
+    help="Mapper.filter_max_reproj_error (pixels). Threshold used by COLMAP's "
+         "Outlier Filtering step (run after every local/global BA) to drop "
+         "points whose reprojection error exceeds this value. COLMAP default "
+         "is 4.0px; LoMa's higher reprojection error (1.477px mean vs SIFT's "
+         "1.017px, observed in every scene) means a tighter threshold "
+         "(1.0-1.2px) is needed to compensate.",
+)
+ 
+# parser.add_argument(
+#     "--merge_complete_max_reproj_error",
+#     default=2.5,
+#     type=float,
+#     help="Triangulator.merge_max_reproj_error / complete_max_reproj_error "
+#          "(pixels, both set to the same value here). Threshold used when "
+#          "merging two tracks or completing a track with a new observation — "
+#          "the likely source of LoMa's disproportionate point-count growth "
+#          "(~18.5x SIFT's point count vs only ~2.3x its registration rate). "
+#          "COLMAP default is 4.0px.",
+# )
+
 args = parser.parse_args()
 
 # Build shell commands — quote paths to handle spaces
@@ -262,13 +321,7 @@ if not args.skip_matching:
     # Available architectures: LoMa-B (default) | LoMa-L | LoMa-G | LoMa-R
     
     matcher_conf = match_features.confs["loma"]
-#     matcher_conf = {
-#     "model": {
-#         "name": "loma",
-#         "arch": "LoMa-B",
-#         "filter_threshold": 0.7, 
-#     },
-# }
+    matcher_conf.setdefault("model", {})["filter_threshold"] = args.filter_threshold
 
     # ── Build image list ─────────────────────────────────────────────────
     valid_ext = {".jpg", ".jpeg", ".png"}
@@ -388,8 +441,13 @@ if not args.skip_matching:
             "ba_global_function_tolerance": 1e-6,
             "ba_global_max_num_iterations": 100,
             "num_threads": 1, # add num_threads 
-            "min_num_observations": 3,
-            "filter_max_reproj_error": 1.2,
+           "mapper": {
+                "filter_max_reproj_error": args.filter_max_reproj_error,
+            },
+            # "triangulation": {
+            #     "merge_max_reproj_error": args.merge_complete_max_reproj_error,
+            #     "complete_max_reproj_error": args.merge_complete_max_reproj_error,
+            # },
             
         },
         verbose=True,
