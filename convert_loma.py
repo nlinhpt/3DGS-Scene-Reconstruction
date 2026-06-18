@@ -261,14 +261,14 @@ if not args.skip_matching:
     #   }
     # Available architectures: LoMa-B (default) | LoMa-L | LoMa-G | LoMa-R
     
-    # matcher_conf = match_features.confs["loma"]
-    matcher_conf = {
-    "model": {
-        "name": "loma",
-        "arch": "LoMa-B",
-        "filter_threshold": 0.7, 
-    },
-}
+    matcher_conf = match_features.confs["loma"]
+#     matcher_conf = {
+#     "model": {
+#         "name": "loma",
+#         "arch": "LoMa-B",
+#         "filter_threshold": 0.7, 
+#     },
+# }
 
     # ── Build image list ─────────────────────────────────────────────────
     valid_ext = {".jpg", ".jpeg", ".png"}
@@ -388,6 +388,9 @@ if not args.skip_matching:
             "ba_global_function_tolerance": 1e-6,
             "ba_global_max_num_iterations": 100,
             "num_threads": 1, # add num_threads 
+            "min_num_observations": 3,
+            "filter_max_reproj_error": 1.2,
+            
         },
         verbose=True,
     )
