@@ -182,17 +182,49 @@ parser.add_argument(
          "(1.0-1.2px) is needed to compensate.",
 )
  
-# parser.add_argument(
-#     "--merge_complete_max_reproj_error",
-#     default=2.5,
-#     type=float,
-#     help="Triangulator.merge_max_reproj_error / complete_max_reproj_error "
-#          "(pixels, both set to the same value here). Threshold used when "
-#          "merging two tracks or completing a track with a new observation — "
-#          "the likely source of LoMa's disproportionate point-count growth "
-#          "(~18.5x SIFT's point count vs only ~2.3x its registration rate). "
-#          "COLMAP default is 4.0px.",
-# )
+parser.add_argument(
+    "--ransac_max_error",
+    default=1.5,
+    type=float,
+    help="pycolmap RANSACOptions.max_error (pixels) used during two-view "
+         "geometric verification of LightGlue/LoMa matches, BEFORE "
+         "triangulation/BA ever sees them. True default is 4.0px (hloc "
+         "does not override this one). LoMa's mean post-BA reprojection "
+         "error sits around 1.48px even with the 4.0px gate, so tightening "
+         "to 1.5px (or 2.0px if registration rate drops too much on hard "
+         "scenes) rejects most of that noise at the source rather than "
+         "asking BA to average over it.",
+)
+parser.add_argument(
+    "--ransac_min_inlier_ratio",
+    default=0.15,
+    type=float,
+    help="pycolmap RANSACOptions.min_inlier_ratio used during two-view "
+         "geometric verification. hloc already hardcodes this to 0.1 "
+         "(10%%), NOT pycolmap's class default of 0.01 -- so raising it "
+         "to 0.05-0.10 (a common suggestion) would be a no-op or even a "
+         "slight loosening versus current behaviour. To meaningfully "
+         "tighten beyond what already runs today, go above 0.10; 0.15 is "
+         "a moderate step that should cut weakly-supported pairs (short "
+         "tracks despite huge point counts) without being as aggressive "
+         "as 0.25-0.30, which risks killing registration on already-hard "
+         "scenes like 0018_00 (0%% SIFT reg. rate even before any tightening).",
+)
+parser.add_argument(
+    "--ransac_max_num_trials",
+    default=50000,
+    type=int,
+    help="pycolmap RANSACOptions.max_num_trials for the same verification "
+         "step. hloc hardcodes this to 20000, NOT pycolmap's class default "
+         "of 100000. Tightening max_error lowers the apparent inlier ratio "
+         "RANSAC sees per sample, so it needs more random samples to land "
+         "on an outlier-free minimal set by chance -- raising trials "
+         "compensates for that. 50000 is a middle ground between hloc's "
+         "current 20000 and the full 100000: matching/reconstruction time "
+         "already grows 2-5x for LoMa vs SIFT-seq in the eval table, so "
+         "jumping straight to 100000 on a large scene (e.g. 0002_00's 520 "
+         "images, already ~1h42m) may not be worth the extra wall-clock.",
+)
 
 args = parser.parse_args()
 
