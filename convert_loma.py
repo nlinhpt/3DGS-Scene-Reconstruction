@@ -49,7 +49,7 @@ except ImportError:
     )
     exit(1)
 
-from hloc.triangulation import OutputCapture as _OutputCapture
+#from hloc.triangulation import OutputCapture as _OutputCapture
 # ═══════════════════════════════════════════════════════════════════════
 # Argument Parser
 # ═══════════════════════════════════════════════════════════════════════
@@ -160,86 +160,86 @@ parser.add_argument(
          "outliers for COLMAP's own filtering stage to clean up.",
 )
  
-# ── Outlier-filtering knobs for LoMa ────────────────────────────────────
-# Picked from Matching_eval.xlsx (SIFT vs LoMA, 10 ScanNet scenes):
-#   - LoMA mean reprojection error is consistently higher than SIFT across
-#     every single scene (1.477px vs 1.017px average) — the most consistent
-#     gap in the whole table.
-#   - LoMA's point count explodes relative to SIFT (~105.7k vs ~5.7k mean,
-#     ~18.5x) while registration rate only grows ~2.3x (96.0% vs 42.2%) —
-#     i.e. most of the extra points come from far denser per-image track
-#     merging/completion, not from registering more images.
-# Both parameters below target these two observed effects directly.
+# # ── Outlier-filtering knobs for LoMa ────────────────────────────────────
+# # Picked from Matching_eval.xlsx (SIFT vs LoMA, 10 ScanNet scenes):
+# #   - LoMA mean reprojection error is consistently higher than SIFT across
+# #     every single scene (1.477px vs 1.017px average) — the most consistent
+# #     gap in the whole table.
+# #   - LoMA's point count explodes relative to SIFT (~105.7k vs ~5.7k mean,
+# #     ~18.5x) while registration rate only grows ~2.3x (96.0% vs 42.2%) —
+# #     i.e. most of the extra points come from far denser per-image track
+# #     merging/completion, not from registering more images.
+# # Both parameters below target these two observed effects directly.
 
  
-parser.add_argument(
-    "--ransac_max_error",
-    default=1.5,
-    type=float,
-    help="pycolmap RANSACOptions.max_error (pixels) used during two-view "
-         "geometric verification of LightGlue/LoMa matches, BEFORE "
-         "triangulation/BA ever sees them. True default is 4.0px (hloc "
-         "does not override this one). LoMa's mean post-BA reprojection "
-         "error sits around 1.48px even with the 4.0px gate, so tightening "
-         "to 1.5px (or 2.0px if registration rate drops too much on hard "
-         "scenes) rejects most of that noise at the source rather than "
-         "asking BA to average over it.",
-)
-parser.add_argument(
-    "--ransac_min_inlier_ratio",
-    default=0.15,
-    type=float,
-    help="pycolmap RANSACOptions.min_inlier_ratio used during two-view "
-         "geometric verification. hloc already hardcodes this to 0.1 "
-         "(10%%), NOT pycolmap's class default of 0.01 -- so raising it "
-         "to 0.05-0.10 (a common suggestion) would be a no-op or even a "
-         "slight loosening versus current behaviour. To meaningfully "
-         "tighten beyond what already runs today, go above 0.10; 0.15 is "
-         "a moderate step that should cut weakly-supported pairs (short "
-         "tracks despite huge point counts) without being as aggressive "
-         "as 0.25-0.30, which risks killing registration on already-hard "
-         "scenes like 0018_00 (0%% SIFT reg. rate even before any tightening).",
-)
-parser.add_argument(
-    "--ransac_max_num_trials",
-    default=50000,
-    type=int,
-    help="pycolmap RANSACOptions.max_num_trials for the same verification "
-         "step. hloc hardcodes this to 20000, NOT pycolmap's class default "
-         "of 100000. Tightening max_error lowers the apparent inlier ratio "
-         "RANSAC sees per sample, so it needs more random samples to land "
-         "on an outlier-free minimal set by chance -- raising trials "
-         "compensates for that. 50000 is a middle ground between hloc's "
-         "current 20000 and the full 100000: matching/reconstruction time "
-         "already grows 2-5x for LoMa vs SIFT-seq in the eval table, so "
-         "jumping straight to 100000 on a large scene (e.g. 0002_00's 520 "
-         "images, already ~1h42m) may not be worth the extra wall-clock.",
-)
+# parser.add_argument(
+#     "--ransac_max_error",
+#     default=1.5,
+#     type=float,
+#     help="pycolmap RANSACOptions.max_error (pixels) used during two-view "
+#          "geometric verification of LightGlue/LoMa matches, BEFORE "
+#          "triangulation/BA ever sees them. True default is 4.0px (hloc "
+#          "does not override this one). LoMa's mean post-BA reprojection "
+#          "error sits around 1.48px even with the 4.0px gate, so tightening "
+#          "to 1.5px (or 2.0px if registration rate drops too much on hard "
+#          "scenes) rejects most of that noise at the source rather than "
+#          "asking BA to average over it.",
+# )
+# parser.add_argument(
+#     "--ransac_min_inlier_ratio",
+#     default=0.15,
+#     type=float,
+#     help="pycolmap RANSACOptions.min_inlier_ratio used during two-view "
+#          "geometric verification. hloc already hardcodes this to 0.1 "
+#          "(10%%), NOT pycolmap's class default of 0.01 -- so raising it "
+#          "to 0.05-0.10 (a common suggestion) would be a no-op or even a "
+#          "slight loosening versus current behaviour. To meaningfully "
+#          "tighten beyond what already runs today, go above 0.10; 0.15 is "
+#          "a moderate step that should cut weakly-supported pairs (short "
+#          "tracks despite huge point counts) without being as aggressive "
+#          "as 0.25-0.30, which risks killing registration on already-hard "
+#          "scenes like 0018_00 (0%% SIFT reg. rate even before any tightening).",
+# )
+# parser.add_argument(
+#     "--ransac_max_num_trials",
+#     default=50000,
+#     type=int,
+#     help="pycolmap RANSACOptions.max_num_trials for the same verification "
+#          "step. hloc hardcodes this to 20000, NOT pycolmap's class default "
+#          "of 100000. Tightening max_error lowers the apparent inlier ratio "
+#          "RANSAC sees per sample, so it needs more random samples to land "
+#          "on an outlier-free minimal set by chance -- raising trials "
+#          "compensates for that. 50000 is a middle ground between hloc's "
+#          "current 20000 and the full 100000: matching/reconstruction time "
+#          "already grows 2-5x for LoMa vs SIFT-seq in the eval table, so "
+#          "jumping straight to 100000 on a large scene (e.g. 0002_00's 520 "
+#          "images, already ~1h42m) may not be worth the extra wall-clock.",
+# )
 
 
 
 
-# ── Post-triangulation track-length filtering ───────────────────────────
-parser.add_argument(
-    "--min_track_length",
-    default=4,
-    type=int,
-    help="Minimum number of images a 3D point must be observed in (its "
-         "track length) to survive post-reconstruction filtering. Applied "
-         "AFTER incremental mapping + global BA finish, directly on the "
-         "sparse model in sfm_dir -- a different stage from the ransac_* "
-         "options above, which only ever see two-view (pairwise) match "
-         "quality and have no notion of how many images a point survives "
-         "into. 2 disables this filter in practice (keeps every "
-         "triangulated point, since COLMAP never triangulates a point "
-         "from fewer than 2 images). 3 (default) is a common minimal-"
-         "redundancy threshold: a point seen in only 2 images has no "
-         "redundant observations to catch a bad triangulation, so a third "
-         "(or more) view is the first point at which the reconstruction "
-         "can cross-check itself. Raise to 4-5 on scenes where point count "
-         "is still inflated after tightening ransac_max_error / "
-         "ransac_min_inlier_ratio above.",
-)
+# # ── Post-triangulation track-length filtering ───────────────────────────
+# parser.add_argument(
+#     "--min_track_length",
+#     default=4,
+#     type=int,
+#     help="Minimum number of images a 3D point must be observed in (its "
+#          "track length) to survive post-reconstruction filtering. Applied "
+#          "AFTER incremental mapping + global BA finish, directly on the "
+#          "sparse model in sfm_dir -- a different stage from the ransac_* "
+#          "options above, which only ever see two-view (pairwise) match "
+#          "quality and have no notion of how many images a point survives "
+#          "into. 2 disables this filter in practice (keeps every "
+#          "triangulated point, since COLMAP never triangulates a point "
+#          "from fewer than 2 images). 3 (default) is a common minimal-"
+#          "redundancy threshold: a point seen in only 2 images has no "
+#          "redundant observations to catch a bad triangulation, so a third "
+#          "(or more) view is the first point at which the reconstruction "
+#          "can cross-check itself. Raise to 4-5 on scenes where point count "
+#          "is still inflated after tightening ransac_max_error / "
+#          "ransac_min_inlier_ratio above.",
+# )
  
 
 args = parser.parse_args()
@@ -394,7 +394,11 @@ if not args.skip_matching:
     #   }
     # Available architectures: LoMa-B (default) | LoMa-L | LoMa-G | LoMa-R
     
-    matcher_conf = match_features.confs["loma"]
+    #matcher_conf = match_features.confs["loma"]
+    matcher_conf = {
+          "output": "matches-loma-r",
+          "model": {"name": "loma", "arch": "LoMa-L"},
+      }
     matcher_conf.setdefault("model", {})["filter_threshold"] = args.filter_threshold
 
     # ── Build image list ─────────────────────────────────────────────────
@@ -529,37 +533,37 @@ if not args.skip_matching:
         )
         exit(1)
 
- # ── Track-length filtering ───────────────────────────────────────────
-    #
-    # Runs after incremental mapping + global BA, directly on the binary
-    # sparse model written to sfm_dir. Removes any 3D point whose track
-    # (the set of images that observe it) is shorter than
-    # --min_track_length. This targets LoMa's point-count explosion at its
-    # actual cause: a glut of points supported by only 2-3 views that
-    # survive two-view RANSAC (each pairwise match looked fine on its own)
-    # but add little real constraint to the final reconstruction.
-    #
-    # Loaded and re-saved via pycolmap.Reconstruction rather than through
-    # hloc, since hloc has no post-hoc point filtering step of its own.
-    print(f"--- [Filter] Removing points with track length < {args.min_track_length} ---")
-    try:
-        rec = pycolmap.Reconstruction(str(sfm_dir))
-        n_before = rec.num_points3D()
-        short_track_ids = [
-            pid for pid, pt in rec.points3D.items()
-            if pt.track.length() < args.min_track_length
-        ]
-        for pid in short_track_ids:
-            rec.delete_point3D(pid)
-        n_after = rec.num_points3D()
-        rec.write(str(sfm_dir))
-        print(
-            f"--- [Filter] {n_before} → {n_after} points "
-            f"({len(short_track_ids)} removed, "
-            f"min_track_length={args.min_track_length}) ---"
-        )
-    except Exception as e:
-        logging.warning("Track-length filtering skipped (non-critical): %s", e)
+#  # ── Track-length filtering ───────────────────────────────────────────
+#     #
+#     # Runs after incremental mapping + global BA, directly on the binary
+#     # sparse model written to sfm_dir. Removes any 3D point whose track
+#     # (the set of images that observe it) is shorter than
+#     # --min_track_length. This targets LoMa's point-count explosion at its
+#     # actual cause: a glut of points supported by only 2-3 views that
+#     # survive two-view RANSAC (each pairwise match looked fine on its own)
+#     # but add little real constraint to the final reconstruction.
+#     #
+#     # Loaded and re-saved via pycolmap.Reconstruction rather than through
+#     # hloc, since hloc has no post-hoc point filtering step of its own.
+#     print(f"--- [Filter] Removing points with track length < {args.min_track_length} ---")
+#     try:
+#         rec = pycolmap.Reconstruction(str(sfm_dir))
+#         n_before = rec.num_points3D()
+#         short_track_ids = [
+#             pid for pid, pt in rec.points3D.items()
+#             if pt.track.length() < args.min_track_length
+#         ]
+#         for pid in short_track_ids:
+#             rec.delete_point3D(pid)
+#         n_after = rec.num_points3D()
+#         rec.write(str(sfm_dir))
+#         print(
+#             f"--- [Filter] {n_before} → {n_after} points "
+#             f"({len(short_track_ids)} removed, "
+#             f"min_track_length={args.min_track_length}) ---"
+#         )
+#     except Exception as e:
+#         logging.warning("Track-length filtering skipped (non-critical): %s", e)
 
     # ── SfM quality evaluation ───────────────────────────────────────────
     #
