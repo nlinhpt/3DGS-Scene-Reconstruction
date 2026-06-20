@@ -216,32 +216,59 @@ parser.add_argument(
          "images, already ~1h42m) may not be worth the extra wall-clock.",
 )
 
+
+
+
+# ── Post-triangulation track-length filtering ───────────────────────────
+parser.add_argument(
+    "--min_track_length",
+    default=4,
+    type=int,
+    help="Minimum number of images a 3D point must be observed in (its "
+         "track length) to survive post-reconstruction filtering. Applied "
+         "AFTER incremental mapping + global BA finish, directly on the "
+         "sparse model in sfm_dir -- a different stage from the ransac_* "
+         "options above, which only ever see two-view (pairwise) match "
+         "quality and have no notion of how many images a point survives "
+         "into. 2 disables this filter in practice (keeps every "
+         "triangulated point, since COLMAP never triangulates a point "
+         "from fewer than 2 images). 3 (default) is a common minimal-"
+         "redundancy threshold: a point seen in only 2 images has no "
+         "redundant observations to catch a bad triangulation, so a third "
+         "(or more) view is the first point at which the reconstruction "
+         "can cross-check itself. Raise to 4-5 on scenes where point count "
+         "is still inflated after tightening ransac_max_error / "
+         "ransac_min_inlier_ratio above.",
+)
+ 
+
 args = parser.parse_args()
 
 
 
 
-def _patched_estimation_and_geometric_verification(database_path, pairs_path, verbose=False):
-    with _OutputCapture(verbose):
-        pycolmap.verify_matches(
-            database_path,
-            pairs_path,
-            options=dict(
-                ransac=dict(
-                    max_error=args.ransac_max_error,
-                    min_inlier_ratio=args.ransac_min_inlier_ratio,
-                    max_num_trials=args.ransac_max_num_trials,
-                )
-            ),
-        )
+# def _patched_estimation_and_geometric_verification(database_path, pairs_path, verbose=False):
+#     with _OutputCapture(verbose):
+#         pycolmap.verify_matches(
+#             database_path,
+#             pairs_path,
+#             options=dict(
+#                 ransac=dict(
+#                     max_error=args.ransac_max_error,
+#                     min_inlier_ratio=args.ransac_min_inlier_ratio,
+#                     max_num_trials=args.ransac_max_num_trials,
+#                 )
+#             ),
+#         )
 
 
-reconstruction.estimation_and_geometric_verification = _patched_estimation_and_geometric_verification
-print(
-    "--- [RANSAC] Two-view verification patched: max_error="
-    f"{args.ransac_max_error}px, min_inlier_ratio={args.ransac_min_inlier_ratio}, "
-    f"max_num_trials={args.ransac_max_num_trials} ---"
-)
+# reconstruction.estimation_and_geometric_verification = _patched_estimation_and_geometric_verification
+# print(
+#     "--- [RANSAC] Two-view verification patched: max_error="
+#     f"{args.ransac_max_error}px, min_inlier_ratio={args.ransac_min_inlier_ratio}, "
+#     f"max_num_trials={args.ransac_max_num_trials} ---"
+# )
+
 
 # Build shell commands — quote paths to handle spaces
 colmap_command = f'"{args.colmap_executable}"' if args.colmap_executable else "colmap"
@@ -501,6 +528,38 @@ if not args.skip_matching:
             "Check feature extraction and matching quality.", sfm_dir
         )
         exit(1)
+
+ # ── Track-length filtering ───────────────────────────────────────────
+    #
+    # Runs after incremental mapping + global BA, directly on the binary
+    # sparse model written to sfm_dir. Removes any 3D point whose track
+    # (the set of images that observe it) is shorter than
+    # --min_track_length. This targets LoMa's point-count explosion at its
+    # actual cause: a glut of points supported by only 2-3 views that
+    # survive two-view RANSAC (each pairwise match looked fine on its own)
+    # but add little real constraint to the final reconstruction.
+    #
+    # Loaded and re-saved via pycolmap.Reconstruction rather than through
+    # hloc, since hloc has no post-hoc point filtering step of its own.
+    print(f"--- [Filter] Removing points with track length < {args.min_track_length} ---")
+    try:
+        rec = pycolmap.Reconstruction(str(sfm_dir))
+        n_before = rec.num_points3D()
+        short_track_ids = [
+            pid for pid, pt in rec.points3D.items()
+            if pt.track.length() < args.min_track_length
+        ]
+        for pid in short_track_ids:
+            rec.delete_point3D(pid)
+        n_after = rec.num_points3D()
+        rec.write(str(sfm_dir))
+        print(
+            f"--- [Filter] {n_before} → {n_after} points "
+            f"({len(short_track_ids)} removed, "
+            f"min_track_length={args.min_track_length}) ---"
+        )
+    except Exception as e:
+        logging.warning("Track-length filtering skipped (non-critical): %s", e)
 
     # ── SfM quality evaluation ───────────────────────────────────────────
     #
