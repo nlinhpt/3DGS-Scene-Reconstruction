@@ -49,7 +49,7 @@ except ImportError:
     )
     exit(1)
 
-
+from hloc.triangulation import OutputCapture as _OutputCapture
 # ═══════════════════════════════════════════════════════════════════════
 # Argument Parser
 # ═══════════════════════════════════════════════════════════════════════
@@ -170,17 +170,7 @@ parser.add_argument(
 #     i.e. most of the extra points come from far denser per-image track
 #     merging/completion, not from registering more images.
 # Both parameters below target these two observed effects directly.
-parser.add_argument(
-    "--filter_max_reproj_error",
-    default=1.2,
-    type=float,
-    help="Mapper.filter_max_reproj_error (pixels). Threshold used by COLMAP's "
-         "Outlier Filtering step (run after every local/global BA) to drop "
-         "points whose reprojection error exceeds this value. COLMAP default "
-         "is 4.0px; LoMa's higher reprojection error (1.477px mean vs SIFT's "
-         "1.017px, observed in every scene) means a tighter threshold "
-         "(1.0-1.2px) is needed to compensate.",
-)
+
  
 parser.add_argument(
     "--ransac_max_error",
@@ -227,6 +217,31 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+
+
+
+
+def _patched_estimation_and_geometric_verification(database_path, pairs_path, verbose=False):
+    with _OutputCapture(verbose):
+        pycolmap.verify_matches(
+            database_path,
+            pairs_path,
+            options=dict(
+                ransac=dict(
+                    max_error=args.ransac_max_error,
+                    min_inlier_ratio=args.ransac_min_inlier_ratio,
+                    max_num_trials=args.ransac_max_num_trials,
+                )
+            ),
+        )
+
+
+reconstruction.estimation_and_geometric_verification = _patched_estimation_and_geometric_verification
+print(
+    "--- [RANSAC] Two-view verification patched: max_error="
+    f"{args.ransac_max_error}px, min_inlier_ratio={args.ransac_min_inlier_ratio}, "
+    f"max_num_trials={args.ransac_max_num_trials} ---"
+)
 
 # Build shell commands — quote paths to handle spaces
 colmap_command = f'"{args.colmap_executable}"' if args.colmap_executable else "colmap"
@@ -473,14 +488,7 @@ if not args.skip_matching:
             "ba_global_function_tolerance": 1e-6,
             "ba_global_max_num_iterations": 100,
             "num_threads": 1, # add num_threads 
-           "mapper": {
-                "filter_max_reproj_error": args.filter_max_reproj_error,
-            },
-            # "triangulation": {
-            #     "merge_max_reproj_error": args.merge_complete_max_reproj_error,
-            #     "complete_max_reproj_error": args.merge_complete_max_reproj_error,
-            # },
-            
+        
         },
         verbose=True,
     )
