@@ -288,11 +288,11 @@ if not args.skip_matching:
     #   }
     # Available architectures: LoMa-B (default) | LoMa-L | LoMa-G | LoMa-R
     
-    # matcher_conf = match_features.confs["loma"]
-    matcher_conf = {
-          "output": "matches-loma-g",
-          "model": {"name": "loma", "arch": "LoMa-G"},
-      }
+    matcher_conf = match_features.confs["loma"]
+    # matcher_conf = {
+    #       "output": "matches-loma-g",
+    #       "model": {"name": "loma", "arch": "LoMa-G"},
+    #   }
     matcher_conf.setdefault("model", {})["filter_threshold"] = args.filter_threshold
 
     # ── Build image list ─────────────────────────────────────────────────
