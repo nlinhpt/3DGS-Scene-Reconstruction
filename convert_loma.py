@@ -400,6 +400,7 @@ if not args.skip_matching:
         camera_mode=pycolmap.CameraMode.SINGLE,
         image_options={"camera_model": args.camera},
         mapper_options={
+            "ba_global_function_tolerance": 1e-6,
             "num_threads": 1, # add num_threads 
         
         },
