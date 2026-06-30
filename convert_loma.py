@@ -253,11 +253,6 @@ def _numeric_key(p: str) -> int:
 #      LightGlue uses a transformer attention mechanism to match keypoints
 #      with global context, producing far fewer outliers than ratio-test NN.
 #   5. Run COLMAP incremental mapper (via hloc) to build the sparse model.
-#      Bundle Adjustment options are tuned for improved convergence:
-#        • ba_global_function_tolerance 1e-6 — early stop when gain < 1e-6
-#          (prevents over-fitting to noise while saving compute)
-#        • ba_global_max_num_iterations 100  — more iterations than the
-#          COLMAP default (50) for better accuracy on large/complex scenes
 # ═══════════════════════════════════════════════════════════════════════
 
 if not args.skip_matching:
@@ -393,12 +388,7 @@ if not args.skip_matching:
     #
     # camera_mode=SINGLE: all images share one camera model. Correct for
     #   footage from a single device with fixed focal length.
-    #
-    # mapper_options:
-    #   ba_global_function_tolerance: stop global BA when improvement per
-    #     iteration drops below this threshold (avoids over-fitting to noise).
-    #   ba_global_max_num_iterations: allow more BA iterations than COLMAP's
-    #     default (50) for better convergence on long/complex sequences.
+ 
     print("--- [hloc/COLMAP] Running incremental mapping + global Bundle Adjustment ---")
     reconstruction.main(
         sfm_dir,
@@ -410,8 +400,6 @@ if not args.skip_matching:
         camera_mode=pycolmap.CameraMode.SINGLE,
         image_options={"camera_model": args.camera},
         mapper_options={
-            "ba_global_function_tolerance": 1e-6,
-            "ba_global_max_num_iterations": 100,
             "num_threads": 1, # add num_threads 
         
         },
